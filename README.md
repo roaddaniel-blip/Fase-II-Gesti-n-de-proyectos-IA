@@ -1,6 +1,8 @@
 # Clasificación de sentimientos en español — FastAPI + Docker
 
-Adaptación del notebook original de comparación de modelos de análisis de sentimientos. **El notebook se conserva sin modificar** en `notebooks/original.ipynb`. El modelo predeterminado es `pysentimiento/robertuito-sentiment-analysis`.
+
+Este notebook contiene un proyecto aplicado en el que selecciona un dataset público, ya sea de clasificación o regresión, realiza su preparación y versionamiento, entrena un modelo de aprendizaje automático, ajusta hiper parámetros y registra los experimentos utilizando MLflow.  
+
 
 ## Requisitos
 
