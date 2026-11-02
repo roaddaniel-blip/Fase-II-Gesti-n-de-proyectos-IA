@@ -1,1 +1,84 @@
+# Manual de despliegue — Google Cloud Run
+
+## 1. Arquitectura y estrategia
+
+GitHub (fuente y CI) → Docker (imagen OCI) → Artifact Registry (almacenamiento) → Cloud Run (PaaS gestionado) → cliente HTTP. Cloud Run ejecuta un contenedor sin administrar servidores. Modelo cargado en CPU bajo demanda desde Hugging Face; la primera solicitud puede tardar y necesita acceso a Internet.
+
+## 2. Requisitos
+
+- Proyecto Google Cloud con facturación habilitada.
+- Permisos suficientes para habilitar APIs, crear repositorio de Artifact Registry, subir imágenes y desplegar servicios Cloud Run (y permiso para usar la cuenta de servicio de ejecución).
+- `gcloud` autenticado y Docker instalado localmente; Python 3.11 opcional para desarrollo.
+- Región propuesta: `us-central1` (adaptar a políticas de residencia de datos).
+- RAM: empezar con 4 GiB; CPU: 2 vCPU; timeout: 300 s. Ajustar mediante pruebas de carga y tamaño real del modelo.
+- Acceso de salida a Hugging Face, o estrategia de empaquetado/caché aprobada para entornos restringidos.
+
+## 3. Configuración
+
+```bash
+export PROJECT_ID='TU_PROYECTO'
+export REGION='us-central1'
+export REPOSITORY='ml-api'
+export SERVICE='clasificador-sentimientos'
+export IMAGE="$REGION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/$SERVICE:1.0"
+gcloud auth login
+gcloud config set project "$PROJECT_ID"
+gcloud services enable run.googleapis.com artifactregistry.googleapis.com cloudbuild.googleapis.com
+```
+
+## 4. Construcción y publicación
+
+```bash
+gcloud artifacts repositories create "$REPOSITORY" --repository-format=docker --location="$REGION" --description='API de sentimientos'
+gcloud auth configure-docker "$REGION-docker.pkg.dev"
+docker build --platform linux/amd64 -t "$IMAGE" .
+docker push "$IMAGE"
+```
+
+Si el repositorio ya existe, omitir su creación. Confirmar imagen en Artifact Registry.
+
+## 5. Despliegue
+
+```bash
+gcloud run deploy "$SERVICE" \
+  --image "$IMAGE" \
+  --region "$REGION" \
+  --platform managed \
+  --memory 4Gi \
+  --cpu 2 \
+  --timeout 300 \
+  --concurrency 1 \
+  --min-instances 0 \
+  --max-instances 2 \
+  --no-allow-unauthenticated
+```
+
+Se recomienda mantener autenticación. Para pruebas con acceso público únicamente si está autorizado, cambiar explícitamente la política IAM; no exponer datos sensibles. La identidad de ejecución debe aplicar mínimo privilegio.
+
+## 6. Validación
+
+```bash
+export URL="$(gcloud run services describe "$SERVICE" --region "$REGION" --format='value(status.url)')"
+TOKEN="$(gcloud auth print-identity-token)"
+curl -H "Authorization: Bearer $TOKEN" "$URL/health"
+curl -H "Authorization: Bearer $TOKEN" "$URL/ready"
+curl -X POST "$URL/predict" -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d '{"text":"El servicio es excelente"}'
+```
+
+Para servicios privados, el invocador necesita rol `roles/run.invoker`. Los tokens de identidad deben tener audiencia válida para el servicio; según la configuración de autenticación puede requerirse `gcloud auth print-identity-token --audiences="$URL"` con credenciales apropiadas. Guardar evidencia: URL, revisión, logs, respuestas HTTP, fecha y captura de Artifact Registry.
+
+## 7. Operación y reversión
+
+Usar Cloud Logging y métricas de Cloud Run para latencia, 5xx, CPU y memoria. Ajustar concurrencia y memoria tras medir. Desplegar nueva etiqueta de imagen para actualizaciones. Ante error, volver a una revisión anterior desde Cloud Run o desplegar imagen estable. No incluir tokens, secretos ni textos confidenciales en capturas.
+
+## 8. Uso de herramientas de documentación
+
+Se puede utilizar GitHub Copilot para redactar borradores de README, explicar funciones, generar esqueletos de pruebas y revisar comandos. Validar manualmente cada instrucción, permisos y salida; registrar en la memoria del proyecto qué contenido fue asistido por IA. **No se afirma que Copilot haya sido utilizado en la generación de estos archivos.**
+
+## 9. Riesgos y mejoras
+
+- Descarga inicial del modelo: alta latencia y dependencia externa. Para producción, predescargar pesos en build con licencias y seguridad revisadas.
+- `GET /health` solo comprueba proceso; `GET /ready` verifica modelo.
+- El límite de 5000 caracteres es de entrada; la inferencia trunca a 128 tokens. Informar a usuarios de esta limitación.
+- Validar privacidad, permisos, costes y región antes de publicar.
 
