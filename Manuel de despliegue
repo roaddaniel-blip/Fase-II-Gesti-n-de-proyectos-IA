@@ -1,21 +1,14 @@
-# Manual de despliegue — Google Cloud Run
-
-## 1. Arquitectura y estrategia
-
+Manual de despliegue — Google Cloud Run
+1. Arquitectura y estrategia
 GitHub (fuente y CI) → Docker (imagen OCI) → Artifact Registry (almacenamiento) → Cloud Run (PaaS gestionado) → cliente HTTP. Cloud Run ejecuta un contenedor sin administrar servidores. Modelo cargado en CPU bajo demanda desde Hugging Face; la primera solicitud puede tardar y necesita acceso a Internet.
-
-## 2. Requisitos
-
+2. Requisitos
 - Proyecto Google Cloud con facturación habilitada.
 - Permisos suficientes para habilitar APIs, crear repositorio de Artifact Registry, subir imágenes y desplegar servicios Cloud Run (y permiso para usar la cuenta de servicio de ejecución).
-- `gcloud` autenticado y Docker instalado localmente; Python 3.11 opcional para desarrollo.
-- Región propuesta: `us-central1` (adaptar a políticas de residencia de datos).
+- gcloud autenticado y Docker instalado localmente; Python 3.11 opcional para desarrollo.
+- Región propuesta: us-central1 (adaptar a políticas de residencia de datos).
 - RAM: empezar con 4 GiB; CPU: 2 vCPU; timeout: 300 s. Ajustar mediante pruebas de carga y tamaño real del modelo.
 - Acceso de salida a Hugging Face, o estrategia de empaquetado/caché aprobada para entornos restringidos.
-
-## 3. Configuración
-
-```bash
+3. Configuración
 export PROJECT_ID='TU_PROYECTO'
 export REGION='us-central1'
 export REPOSITORY='ml-api'
@@ -24,22 +17,13 @@ export IMAGE="$REGION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/$SERVICE:1.0"
 gcloud auth login
 gcloud config set project "$PROJECT_ID"
 gcloud services enable run.googleapis.com artifactregistry.googleapis.com cloudbuild.googleapis.com
-```
-
-## 4. Construcción y publicación
-
-```bash
+4. Construcción y publicación
 gcloud artifacts repositories create "$REPOSITORY" --repository-format=docker --location="$REGION" --description='API de sentimientos'
 gcloud auth configure-docker "$REGION-docker.pkg.dev"
 docker build --platform linux/amd64 -t "$IMAGE" .
 docker push "$IMAGE"
-```
-
 Si el repositorio ya existe, omitir su creación. Confirmar imagen en Artifact Registry.
-
-## 5. Despliegue
-
-```bash
+5. Despliegue
 gcloud run deploy "$SERVICE" \
   --image "$IMAGE" \
   --region "$REGION" \
@@ -51,34 +35,47 @@ gcloud run deploy "$SERVICE" \
   --min-instances 0 \
   --max-instances 2 \
   --no-allow-unauthenticated
-```
-
 Se recomienda mantener autenticación. Para pruebas con acceso público únicamente si está autorizado, cambiar explícitamente la política IAM; no exponer datos sensibles. La identidad de ejecución debe aplicar mínimo privilegio.
-
-## 6. Validación
-
-```bash
+6. Validación
 export URL="$(gcloud run services describe "$SERVICE" --region "$REGION" --format='value(status.url)')"
 TOKEN="$(gcloud auth print-identity-token)"
 curl -H "Authorization: Bearer $TOKEN" "$URL/health"
 curl -H "Authorization: Bearer $TOKEN" "$URL/ready"
 curl -X POST "$URL/predict" -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d '{"text":"El servicio es excelente"}'
-```
-
-Para servicios privados, el invocador necesita rol `roles/run.invoker`. Los tokens de identidad deben tener audiencia válida para el servicio; según la configuración de autenticación puede requerirse `gcloud auth print-identity-token --audiences="$URL"` con credenciales apropiadas. Guardar evidencia: URL, revisión, logs, respuestas HTTP, fecha y captura de Artifact Registry.
-
-## 7. Operación y reversión
-
+Para servicios privados, el invocador necesita rol roles/run.invoker. Los tokens de identidad deben tener audiencia válida para el servicio; según la configuración de autenticación puede requerirse gcloud auth print-identity-token --audiences="$URL" con credenciales apropiadas. Guardar evidencia: URL, revisión, logs, respuestas HTTP, fecha y captura de Artifact Registry.
+7. Operación y reversión
 Usar Cloud Logging y métricas de Cloud Run para latencia, 5xx, CPU y memoria. Ajustar concurrencia y memoria tras medir. Desplegar nueva etiqueta de imagen para actualizaciones. Ante error, volver a una revisión anterior desde Cloud Run o desplegar imagen estable. No incluir tokens, secretos ni textos confidenciales en capturas.
-
-## 8. Uso de herramientas de documentación
-
-Se puede utilizar GitHub Copilot para redactar borradores de README, explicar funciones, generar esqueletos de pruebas y revisar comandos. Validar manualmente cada instrucción, permisos y salida; registrar en la memoria del proyecto qué contenido fue asistido por IA. **No se afirma que Copilot haya sido utilizado en la generación de estos archivos.**
-
-## 9. Riesgos y mejoras
-
+8. Uso de herramientas de documentación
+Se puede utilizar GitHub Copilot para redactar borradores de README, explicar funciones, generar esqueletos de pruebas y revisar comandos. Validar manualmente cada instrucción, permisos y salida; registrar en la memoria del proyecto qué contenido fue asistido por IA. No se afirma que Copilot haya sido utilizado en la generación de estos archivos.
+9. Riesgos y mejoras
 - Descarga inicial del modelo: alta latencia y dependencia externa. Para producción, predescargar pesos en build con licencias y seguridad revisadas.
-- `GET /health` solo comprueba proceso; `GET /ready` verifica modelo.
+- GET /health solo comprueba proceso; GET /ready verifica modelo.
 - El límite de 5000 caracteres es de entrada; la inferencia trunca a 128 tokens. Informar a usuarios de esta limitación.
 - Validar privacidad, permisos, costes y región antes de publicar.
+10. Procedimiento de entrega y evidencias
+1. Preparación: descomprimir el proyecto, revisar README.md, confirmar que Dockerfile, dependencias y código de la API estén presentes. Guardar captura de la estructura de carpetas.
+2. Control de versiones: crear repositorio GitHub, subir el código sin secretos y registrar el enlace y el hash del commit. No se ha publicado automáticamente el repositorio.
+3. Pruebas locales: instalar dependencias, ejecutar pytest -q, iniciar la API y comprobar /health, /ready, /models, /predict y /docs. La prueba real del modelo requiere descargar sus pesos.
+4. Contenedor: ejecutar docker build --platform linux/amd64 -t clasificador-sentimientos:1.0 . y docker run --rm -p 8080:8080 -e PORT=8080 clasificador-sentimientos:1.0. Verificar http://localhost:8080/health y registrar salida de docker images, docker ps y las respuestas de la API. Adaptar el puerto si el Dockerfile indica otro.
+5. Preparación cloud: crear proyecto con facturación, habilitar las APIs y asignar permisos IAM mínimos. Seleccionar región y estimar costes.
+6. Publicación de imagen: configurar Artifact Registry, etiquetar y publicar la imagen; guardar digest y captura del repositorio de imágenes.
+7. Despliegue Cloud Run: desplegar servicio privado con los parámetros de la sección 5; registrar revisión, URL, configuración y logs.
+8. Validación remota: invocar los endpoints con un token de identidad válido y ejecutar una predicción con texto de ejemplo. Registrar HTTP status, cuerpo JSON, latencia y fecha.
+9. Cierre: documentar incidencias, coste estimado, restricciones del modelo y procedimiento de reversión. No adjuntar secretos ni datos reales de clientes.
+11. Justificación de la estrategia técnica
+Contenedores Docker: encapsulan Python, FastAPI y bibliotecas de inferencia en una imagen OCI reproducible; facilitan la ejecución local y reducen diferencias entre desarrollo y producción. Artifact Registry: conserva imágenes versionadas. Cloud Run (PaaS serverless): administra el ciclo de vida del servicio HTTP, HTTPS, escalado y revisiones, evitando gestionar máquinas virtuales o clústeres Kubernetes. GitHub Actions (CI): ejecuta pruebas y controles sobre cada cambio; la publicación automática a Google Cloud exige configurar identidad federada y permisos, y no se considera habilitada solo por existir el workflow.
 
+Se prefiere esta arquitectura frente a una VM por su menor carga operativa y frente a Kubernetes por su menor complejidad para una sola API. Como contrapartida, el inicio en frío y la carga de RoBERTuito pueden aumentar la latencia; validar memoria, CPU, tiempos de inicio y cuotas antes de uso productivo. La región us-central1 es ilustrativa y debe ajustarse a requisitos de residencia y cumplimiento.
+12. Registro del uso de asistentes de documentación
+GitHub Copilot puede apoyar la generación de borradores de README.md, docstrings, explicaciones de endpoints, ejemplos curl, diagramas Mermaid y propuestas de casos de prueba. Un procedimiento trazable consiste en: (a) formular una solicitud sin secretos; (b) guardar fecha, herramienta, objetivo y fragmento propuesto; (c) revisar comandos, dependencias y permisos contra el código real y documentación oficial; (d) ejecutar las pruebas pertinentes; y (e) registrar la aprobación humana y la versión final.
+
+Declaración de uso: este manual fue elaborado con asistencia de ChatGPT; no hay evidencia de que GitHub Copilot se haya utilizado efectivamente. No atribuir a Copilot trabajo no realizado. Ninguna sugerencia de IA sustituye la ejecución ni las evidencias del despliegue.
+13. Matriz de verificación
+Elemento	Evidencia solicitada	Estado
+Repositorio	URL GitHub y commit	Pendiente de publicación
+Imagen Docker	Salida de build y digest	Pendiente de ejecución
+Servicio local	Logs y respuestas HTTP	Pendiente de ejecución real
+Artifact Registry	Imagen publicada y digest	Pendiente
+Cloud Run	URL, revisión y configuración	Pendiente
+Inferencia real	JSON de /predict y tiempo de respuesta	Pendiente
+Manual	Pasos, requisitos, estrategia y uso de IA
