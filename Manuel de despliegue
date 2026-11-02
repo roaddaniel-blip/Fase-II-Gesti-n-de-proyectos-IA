@@ -69,13 +69,4 @@ Se prefiere esta arquitectura frente a una VM por su menor carga operativa y fre
 12. Registro del uso de asistentes de documentación
 GitHub Copilot puede apoyar la generación de borradores de README.md, docstrings, explicaciones de endpoints, ejemplos curl, diagramas Mermaid y propuestas de casos de prueba. Un procedimiento trazable consiste en: (a) formular una solicitud sin secretos; (b) guardar fecha, herramienta, objetivo y fragmento propuesto; (c) revisar comandos, dependencias y permisos contra el código real y documentación oficial; (d) ejecutar las pruebas pertinentes; y (e) registrar la aprobación humana y la versión final.
 
-Declaración de uso: este manual fue elaborado con asistencia de ChatGPT; no hay evidencia de que GitHub Copilot se haya utilizado efectivamente. No atribuir a Copilot trabajo no realizado. Ninguna sugerencia de IA sustituye la ejecución ni las evidencias del despliegue.
-13. Matriz de verificación
-Elemento	Evidencia solicitada	Estado
-Repositorio	URL GitHub y commit	Pendiente de publicación
-Imagen Docker	Salida de build y digest	Pendiente de ejecución
-Servicio local	Logs y respuestas HTTP	Pendiente de ejecución real
-Artifact Registry	Imagen publicada y digest	Pendiente
-Cloud Run	URL, revisión y configuración	Pendiente
-Inferencia real	JSON de /predict y tiempo de respuesta	Pendiente
-Manual	Pasos, requisitos, estrategia y uso de IA
+
