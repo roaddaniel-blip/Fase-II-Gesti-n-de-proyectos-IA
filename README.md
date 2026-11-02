@@ -56,3 +56,34 @@ Ver `docs/manual_despliegue_cloud_run.md`. La CI prueba la API y construye la im
 
 
 Verificar la licencia y términos del modelo de Hugging Face y del dataset original antes de su distribución o uso comercial. El notebook original incluye experimentos MLflow separados de la API.
+
+## Archivos de configuración necesarios.
+
+fastapi==0.115.12
+uvicorn==0.34.2
+pydantic==2.11.4
+transformers==4.51.3
+torch==2.6.0
+safetensors==0.5.3
+
+## Evidencia de integración 
+name: API tests and Docker build
+on:
+  push:
+  pull_request:
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install -r requirements-dev.txt
+      - run: python -m pytest -q
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t clasificador-sentimientos:ci .
+
