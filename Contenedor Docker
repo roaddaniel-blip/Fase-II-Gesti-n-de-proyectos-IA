@@ -1,0 +1,57 @@
+# Entregable 2. Contenedor Docker del clasificador de sentimientos
+
+## Objetivo
+Ejecutar la API FastAPI de clasificación de sentimientos en español con el modelo `pysentimiento/robertuito-sentiment-analysis` en un contenedor Docker.
+
+## Requisitos
+- Docker Engine o Docker Desktop funcionando.
+- Al menos 4 GB de RAM asignados a Docker (recomendado; puede necesitar más durante la instalación o carga).
+- Conexión a Internet para instalar dependencias al construir y descargar el modelo en la primera inferencia.
+- Puerto 8080 disponible.
+
+## Archivos necesarios
+El `Dockerfile` debe colocarse en la raíz del proyecto junto a `requirements.txt`, y debe existir la carpeta `app/` con `main.py` e `inference.py`. **No es suficiente construir la imagen usando solo el Dockerfile:** descargue el ZIP completo del proyecto y ejecute los comandos desde su raíz.
+
+## 1. Construir la imagen
+```bash
+docker build -t clasificador-sentimientos:1.0 .
+```
+Verifique que existe:
+```bash
+docker images clasificador-sentimientos
+```
+
+## 2. Ejecutar el contenedor
+```bash
+docker run --rm --name clasificador-api -p 8080:8080 --memory=4g clasificador-sentimientos:1.0
+```
+En otra terminal:
+```bash
+curl http://localhost:8080/health
+curl http://localhost:8080/models
+curl http://localhost:8080/ready
+curl -X POST http://localhost:8080/predict -H "Content-Type: application/json" -d '{"text":"Me encanta este producto"}'
+```
+Abra `http://localhost:8080/docs` para ver Swagger UI. `/ready` y `/predict` pueden tardar la primera vez porque descargan e inicializan RoBERTuito.
+
+## 3. Prueba automatizada de humo
+Desde la raíz del proyecto, con el contenedor en ejecución:
+```bash
+sh scripts/smoke_test.sh
+```
+
+## 4. Diagnóstico y detención
+```bash
+docker logs clasificador-api
+docker ps
+docker stop clasificador-api
+```
+
+## 5. Evidencias para entregar
+Conserve capturas o archivos de salida de: `docker build`, `docker images`, `docker ps`, `/health`, `/ready`, `/predict` y `/docs`. Anote fecha, versión de Docker y equipo utilizado.
+
+## Estado de verificación
+**Preparado, no validado en Docker en este entorno.** El Dockerfile se ha extraído del paquete del proyecto y su estructura se ha inspeccionado, pero no se ha ejecutado `docker build` ni `docker run` porque el motor Docker no está disponible. No se afirma que la imagen se haya construido correctamente ni que la inferencia real esté comprobada.
+
+## Consideraciones
+El modelo se descarga en tiempo de ejecución y el almacenamiento temporal del contenedor puede perderse al reiniciarlo. Para producción, evaluar cache persistente o incluir pesos en la imagen, con revisión de licencias y seguridad. No introduzca credenciales en la imagen.
